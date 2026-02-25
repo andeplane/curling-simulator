@@ -1,10 +1,13 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createIceSheet } from "./scene/ice-sheet";
-import { createDemoStones } from "./scene/stones";
+import { StoneManager } from "./scene/stones";
 import { createArena } from "./scene/arena";
 import { createLighting } from "./scene/lighting";
-import { TEE_Z } from "./utils/constants";
+import { GameController } from "./game/game-controller";
+import { InputHandler } from "./game/input-handler";
+import { HUD } from "./game/hud";
+import { HACK_Z, TEE_Z } from "./utils/constants";
 
 // ── Renderer ────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -28,24 +31,76 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   500
 );
-camera.position.set(4, 6, TEE_Z + 8);
-camera.lookAt(0, 0, TEE_Z);
 
-// ── Controls ────────────────────────────────────────────────────────
+// ── Controls (always enabled — mouse is for camera only) ────────────
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0, TEE_Z);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.maxPolarAngle = Math.PI / 2 - 0.05;
 controls.minDistance = 2;
-controls.maxDistance = 60;
-controls.update();
+controls.maxDistance = 80;
 
-// ── Scene objects ───────────────────────────────────────────────────
+// ── Static scene objects ────────────────────────────────────────────
 scene.add(createIceSheet());
-scene.add(createDemoStones());
 scene.add(createArena());
 scene.add(createLighting());
+
+// ── Stones group (managed by StoneManager) ──────────────────────────
+const stonesGroup = new THREE.Group();
+stonesGroup.name = "stones";
+scene.add(stonesGroup);
+const stoneManager = new StoneManager(stonesGroup);
+
+// ── Game + Input + HUD ──────────────────────────────────────────────
+const game = new GameController();
+const input = new InputHandler(renderer.domElement, camera, game);
+const hud = new HUD();
+scene.add(input.aimGroup);
+for (const obj of input.sceneObjects) scene.add(obj);
+
+// ── Camera modes ────────────────────────────────────────────────────
+const desiredTarget = new THREE.Vector3();
+const desiredPos = new THREE.Vector3();
+let cameraAutoMode = true;
+
+function updateCamera(): void {
+  const targetEnd = game.world.targetEnd;
+  const hackZ = targetEnd === -1 ? HACK_Z : -HACK_Z;
+  const teeZ = targetEnd === -1 ? -TEE_Z : TEE_Z;
+
+  if (game.phase === "AIMING") {
+    const behindHack = targetEnd === -1 ? hackZ + 6 : hackZ - 6;
+    desiredPos.set(1.5, 3.5, behindHack);
+    desiredTarget.set(0, 0, hackZ + (targetEnd === -1 ? -10 : 10));
+  } else if (game.phase === "DELIVERING" || game.phase === "SETTLING") {
+    const delivered = game.world.getDeliveredStone();
+    if (delivered && delivered.inPlay) {
+      const offset = targetEnd === -1 ? 5 : -5;
+      desiredPos.set(delivered.pos.x + 2.5, 3.5, delivered.pos.z + offset);
+      desiredTarget.set(delivered.pos.x, 0, delivered.pos.z);
+    } else {
+      desiredPos.set(2, 6, teeZ + (targetEnd === -1 ? -6 : 6));
+      desiredTarget.set(0, 0, teeZ);
+    }
+  } else {
+    desiredPos.set(0, 10, teeZ + (targetEnd === -1 ? -3 : 3));
+    desiredTarget.set(0, 0, teeZ);
+  }
+
+  // Only auto-move camera if user hasn't manually orbited
+  if (cameraAutoMode) {
+    camera.position.lerp(desiredPos, 0.04);
+    controls.target.lerp(desiredTarget, 0.04);
+  }
+  controls.update();
+}
+
+// Detect user manual orbit — disable auto mode temporarily
+controls.addEventListener("start", () => {
+  cameraAutoMode = false;
+});
+// Re-enable auto mode when game phase changes (handled in animate)
+let lastPhase = game.phase;
 
 // ── Resize handling ─────────────────────────────────────────────────
 window.addEventListener("resize", () => {
@@ -54,9 +109,46 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// ── Initialize camera position ──────────────────────────────────────
+const initHackZ = game.world.targetEnd === -1 ? HACK_Z : -HACK_Z;
+camera.position.set(1.5, 3.5, initHackZ + 6);
+controls.target.set(0, 0, initHackZ - 10);
+controls.update();
+
 // ── Animation loop ──────────────────────────────────────────────────
-function animate() {
-  controls.update();
+const clock = new THREE.Clock();
+let previousStoneCount = 0;
+
+function animate(): void {
+  const dt = Math.min(clock.getDelta(), 0.1);
+
+  // Re-enable auto camera when phase changes
+  if (game.phase !== lastPhase) {
+    cameraAutoMode = true;
+    lastPhase = game.phase;
+  }
+
+  // Process continuous input (held keys)
+  input.update();
+
+  // Update game logic + physics
+  game.update(dt);
+
+  // Detect game reset
+  if (game.world.stones.length === 0 && previousStoneCount > 0) {
+    stoneManager.clear();
+  }
+  previousStoneCount = game.world.stones.length;
+
+  // Sync 3D meshes
+  stoneManager.sync(game.world.stones);
+
+  // Update camera
+  updateCamera();
+
+  // Update HUD
+  hud.update(game, input);
+
   renderer.render(scene, camera);
 }
 
