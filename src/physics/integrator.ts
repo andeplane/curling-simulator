@@ -17,10 +17,10 @@ export function stepPhysics(
   sweeping: boolean
 ): void {
   const dt = PHYSICS_DT;
-  const active = stones.filter((s) => s.inPlay);
 
   // Apply ice forces (semi-implicit Euler: update vel first, then pos)
-  for (const s of active) {
+  for (const s of stones) {
+    if (!s.inPlay) continue;
     const speed = Math.sqrt(s.vel.x * s.vel.x + s.vel.z * s.vel.z);
     if (speed < SETTLE_VEL_THRESHOLD && Math.abs(s.omega) < SETTLE_OMEGA_THRESHOLD) {
       s.vel.x = 0;

@@ -16,9 +16,12 @@ export class PhysicsWorld {
 
   /** True while any stone has non-zero velocity */
   get isSimulating(): boolean {
-    return this.stones.some(
-      (s) => s.inPlay && (Math.abs(s.vel.x) > 0.001 || Math.abs(s.vel.z) > 0.001 || Math.abs(s.omega) > 0.01)
-    );
+    for (const s of this.stones) {
+      if (s.inPlay && (Math.abs(s.vel.x) > 0.001 || Math.abs(s.vel.z) > 0.001 || Math.abs(s.omega) > 0.01)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   constructor(ice?: Partial<IceParams>) {
@@ -101,5 +104,31 @@ export class PhysicsWorld {
   getDeliveredStone(): StoneState | null {
     if (this.deliveredStoneIndex < 0) return null;
     return this.stones[this.deliveredStoneIndex] ?? null;
+  }
+
+  /**
+   * Run physics simulation in a tight loop until all stones settle.
+   * This is optimized for headless/batch simulation without real-time throttling.
+   * Returns the number of physics steps taken.
+   */
+  runUntilSettled(maxSteps = 100_000): number {
+    for (let i = 0; i < maxSteps; i++) {
+      stepPhysics(this.stones, this.ice, this.sweeping);
+      applyRules(this.stones, this.deliveredStoneIndex, this.targetEnd);
+      if (!this.isSimulating) {
+        // Check hog line violation on the delivered stone
+        if (this.deliveredStoneIndex >= 0) {
+          const delivered = this.stones[this.deliveredStoneIndex];
+          if (delivered && delivered.inPlay) {
+            if (checkHogLineViolation(delivered, this.targetEnd)) {
+              delivered.inPlay = false;
+            }
+          }
+        }
+        this.deliveredStoneIndex = -1;
+        return i + 1;
+      }
+    }
+    return maxSteps;
   }
 }
