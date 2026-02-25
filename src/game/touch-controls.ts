@@ -15,29 +15,27 @@ export class TouchControls {
   private endScorePanel: HTMLDivElement;
 
   // Aiming controls
-  private aimSlider: HTMLDivElement;
-  private aimThumb: HTMLDivElement;
-  private aimValue: HTMLDivElement;
-  private aimMin: number;
-  private aimMax: number;
-  private powerSlider: HTMLDivElement;
-  private powerThumb: HTMLDivElement;
-  private powerValue: HTMLDivElement;
-  private powerMin: number;
-  private powerMax: number;
-  private spinSlider: HTMLDivElement;
-  private spinThumb: HTMLDivElement;
-  private spinValue: HTMLDivElement;
-  private spinMin: number;
-  private spinMax: number;
-  private throwBtn: HTMLButtonElement;
+  private aimSlider!: HTMLDivElement;
+  private aimThumb!: HTMLDivElement;
+  private aimValue!: HTMLSpanElement;
+  private aimMin!: number;
+  private aimMax!: number;
+  private powerSlider!: HTMLDivElement;
+  private powerThumb!: HTMLDivElement;
+  private powerValue!: HTMLSpanElement;
+  private spinSlider!: HTMLDivElement;
+  private spinThumb!: HTMLDivElement;
+  private spinValue!: HTMLSpanElement;
+  private spinMin!: number;
+  private spinMax!: number;
+  private throwBtn!: HTMLButtonElement;
 
   // Delivering controls
-  private sweepBtn: HTMLButtonElement;
+  private sweepBtn!: HTMLButtonElement;
 
   // End score controls
-  private continueBtn: HTMLButtonElement;
-  private restartBtn: HTMLButtonElement;
+  private continueBtn!: HTMLButtonElement;
+  private restartBtn!: HTMLButtonElement;
 
   private isDragging: { slider: "aim" | "power" | null; startX: number; startValue: number } | null = null;
 
@@ -137,8 +135,6 @@ export class TouchControls {
     powerLabel.textContent = "Power:";
     powerLabel.style.minWidth = "40px";
 
-    this.powerMin = MIN_TIME;
-    this.powerMax = MAX_TIME;
     // Power slider is inverted: left = low power (high time), right = high power (low time)
     // Calculate initial normalized value: MAX_TIME (low power) = 0, MIN_TIME (high power) = 1
     const initialPowerNormalized = (MAX_TIME - this.input.aimTime) / (MAX_TIME - MIN_TIME);
