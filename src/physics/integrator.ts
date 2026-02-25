@@ -53,6 +53,12 @@ export function stepPhysics(
       }
     }
 
+    // Stop spin when stone stops moving
+    const finalSpeed = Math.sqrt(s.vel.x * s.vel.x + s.vel.z * s.vel.z);
+    if (finalSpeed < SETTLE_VEL_THRESHOLD) {
+      s.omega = 0;
+    }
+
     // Update position from new velocity
     s.pos.x += s.vel.x * dt;
     s.pos.z += s.vel.z * dt;
