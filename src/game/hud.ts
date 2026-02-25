@@ -86,7 +86,7 @@ export class HUD {
 
     this.controlsEl = this.makeEl("controls", {
       position: "absolute",
-      bottom: this.isTouchDevice ? "calc(35vh + 8px)" : "16px",
+      bottom: this.isTouchDevice ? "calc(35dvh + 8px)" : "16px",
       left: "50%",
       transform: "translateX(-50%)",
       fontSize: "clamp(10px, 2vw, 12px)",

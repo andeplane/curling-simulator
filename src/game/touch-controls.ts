@@ -50,7 +50,7 @@ export class TouchControls {
       bottom: "0",
       left: "0",
       width: "100%",
-      height: `${CONTROL_PANEL_HEIGHT}vh`,
+      height: `${CONTROL_PANEL_HEIGHT}dvh`,
       pointerEvents: "auto",
       background: "rgba(0, 0, 0, 0.85)",
       backdropFilter: "blur(8px)",
@@ -494,7 +494,7 @@ export class TouchControls {
 
   /** Get the height of the control panel in pixels */
   getHeight(): number {
-    return (window.innerHeight * CONTROL_PANEL_HEIGHT) / 100;
+    return this.container.getBoundingClientRect().height;
   }
 
   dispose(): void {
