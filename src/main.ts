@@ -7,6 +7,7 @@ import { createLighting } from "./scene/lighting";
 import { GameController } from "./game/game-controller";
 import { InputHandler } from "./game/input-handler";
 import { HUD } from "./game/hud";
+import { TouchControls } from "./game/touch-controls";
 import { HACK_Z, TEE_Z } from "./utils/constants";
 
 // ── Renderer ────────────────────────────────────────────────────────
@@ -51,10 +52,14 @@ stonesGroup.name = "stones";
 scene.add(stonesGroup);
 const stoneManager = new StoneManager(stonesGroup);
 
+// ── Touch device detection ──────────────────────────────────────────
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
 // ── Game + Input + HUD ──────────────────────────────────────────────
 const game = new GameController();
 const input = new InputHandler(renderer.domElement, camera, game);
 const hud = new HUD();
+const touchControls = isTouchDevice ? new TouchControls(game, input) : null;
 scene.add(input.aimGroup);
 for (const obj of input.sceneObjects) scene.add(obj);
 
@@ -103,11 +108,34 @@ controls.addEventListener("start", () => {
 let lastPhase = game.phase;
 
 // ── Resize handling ─────────────────────────────────────────────────
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+function handleResize(): void {
+  let canvasHeight = window.innerHeight;
+  let canvasWidth = window.innerWidth;
+  
+  // On touch devices, reduce canvas height to leave room for control panel
+  if (isTouchDevice && touchControls) {
+    const controlPanelHeight = touchControls.getHeight();
+    canvasHeight = window.innerHeight - controlPanelHeight;
+    // Adjust canvas element position
+    renderer.domElement.style.height = `${canvasHeight}px`;
+    renderer.domElement.style.position = "fixed";
+    renderer.domElement.style.top = "0";
+    renderer.domElement.style.left = "0";
+  } else {
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.position = "";
+    renderer.domElement.style.top = "";
+    renderer.domElement.style.left = "";
+  }
+  
+  camera.aspect = canvasWidth / canvasHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  renderer.setSize(canvasWidth, canvasHeight);
+}
+
+window.addEventListener("resize", handleResize);
+// Initial resize to set up mobile layout
+handleResize();
 
 // ── Initialize camera position ──────────────────────────────────────
 const initHackZ = game.world.targetEnd === -1 ? HACK_Z : -HACK_Z;
@@ -148,6 +176,12 @@ function animate(): void {
 
   // Update HUD
   hud.update(game, input);
+
+  // Update touch controls visibility and sync with input state
+  if (touchControls) {
+    touchControls.updateVisibility();
+    touchControls.sync();
+  }
 
   renderer.render(scene, camera);
 }

@@ -5,13 +5,14 @@ export class HUD {
   private container: HTMLDivElement;
   private scoreEl: HTMLDivElement;
   private turnInfoEl: HTMLDivElement;
-  private powerBarEl: HTMLDivElement;
-  private powerFillEl: HTMLDivElement;
   private sweepIndicator: HTMLDivElement;
   private messageEl: HTMLDivElement;
   private controlsEl: HTMLDivElement;
+  private isTouchDevice: boolean;
 
   constructor() {
+    // Detect touch device
+    this.isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     this.container = document.createElement("div");
     this.container.id = "hud";
     Object.assign(this.container.style, {
@@ -28,57 +29,37 @@ export class HUD {
 
     this.scoreEl = this.makeEl("score", {
       position: "absolute",
-      top: "16px",
+      top: "clamp(8px, 2vh, 16px)",
       left: "50%",
       transform: "translateX(-50%)",
       display: "flex",
-      gap: "24px",
-      fontSize: "18px",
+      gap: "clamp(12px, 2vw, 24px)",
+      fontSize: "clamp(14px, 3vw, 18px)",
       background: "rgba(0,0,0,0.6)",
-      padding: "10px 24px",
+      padding: "clamp(6px, 1.5vh, 10px) clamp(12px, 3vw, 24px)",
       borderRadius: "8px",
       backdropFilter: "blur(4px)",
     });
 
     this.turnInfoEl = this.makeEl("turnInfo", {
       position: "absolute",
-      top: "70px",
+      top: "clamp(50px, 8vh, 70px)",
       left: "50%",
       transform: "translateX(-50%)",
-      fontSize: "14px",
+      fontSize: "clamp(11px, 2.5vw, 14px)",
       background: "rgba(0,0,0,0.5)",
-      padding: "6px 16px",
+      padding: "clamp(4px, 1vh, 6px) clamp(8px, 2vw, 16px)",
       borderRadius: "6px",
       textAlign: "center",
+      maxWidth: "95%",
     });
-
-    this.powerBarEl = this.makeEl("powerBar", {
-      position: "absolute",
-      bottom: "80px",
-      left: "50%",
-      transform: "translateX(-50%)",
-      width: "200px",
-      height: "12px",
-      background: "rgba(255,255,255,0.15)",
-      borderRadius: "6px",
-      overflow: "hidden",
-    });
-    this.powerFillEl = document.createElement("div");
-    Object.assign(this.powerFillEl.style, {
-      width: "0%",
-      height: "100%",
-      background: "linear-gradient(90deg, #00cc66, #ffcc00, #ff3333)",
-      borderRadius: "6px",
-      transition: "width 0.05s",
-    });
-    this.powerBarEl.appendChild(this.powerFillEl);
 
     this.sweepIndicator = this.makeEl("sweep", {
       position: "absolute",
       top: "50%",
       left: "50%",
       transform: "translate(-50%, -50%)",
-      fontSize: "28px",
+      fontSize: "clamp(20px, 5vw, 28px)",
       fontWeight: "bold",
       color: "#00ff88",
       textShadow: "0 0 20px rgba(0,255,136,0.5)",
@@ -92,24 +73,26 @@ export class HUD {
       top: "45%",
       left: "50%",
       transform: "translate(-50%, -50%)",
-      fontSize: "24px",
+      fontSize: "clamp(18px, 4vw, 24px)",
       fontWeight: "bold",
       textAlign: "center",
       background: "rgba(0,0,0,0.7)",
-      padding: "16px 32px",
+      padding: "clamp(12px, 2vh, 16px) clamp(20px, 4vw, 32px)",
       borderRadius: "10px",
       opacity: "0",
       transition: "opacity 0.3s",
+      maxWidth: "90%",
     });
 
     this.controlsEl = this.makeEl("controls", {
       position: "absolute",
-      bottom: "16px",
+      bottom: this.isTouchDevice ? "calc(35vh + 8px)" : "16px",
       left: "50%",
       transform: "translateX(-50%)",
-      fontSize: "12px",
+      fontSize: "clamp(10px, 2vw, 12px)",
       color: "rgba(255,255,255,0.5)",
       textAlign: "center",
+      display: this.isTouchDevice ? "none" : "block",
     });
     this.controlsEl.innerHTML =
       "<b>A/D</b> aim &nbsp; <b>W/S</b> power &nbsp; <b>Q/E</b> spin (CCW/CW) &nbsp; <b>SPACE</b> throw/sweep &nbsp; <b>R</b> restart &nbsp; | &nbsp; Mouse = camera";
@@ -155,19 +138,12 @@ export class HUD {
       `;
       this.turnInfoEl.style.opacity = "1";
     } else if (game.phase === "DELIVERING") {
-      this.turnInfoEl.innerHTML = `Hold <b>SPACE</b> to sweep`;
+      this.turnInfoEl.innerHTML = this.isTouchDevice 
+        ? `Hold <b>SWEEP</b> button to sweep`
+        : `Hold <b>SPACE</b> to sweep`;
       this.turnInfoEl.style.opacity = "1";
     } else {
       this.turnInfoEl.style.opacity = "0.5";
-    }
-
-    // Speed bar — normalized from 8s (0%) to 20s (100%)
-    if (game.phase === "AIMING") {
-      const timePct = ((input.aimTime - 8.0) / (20.0 - 8.0)) * 100;
-      this.powerBarEl.style.opacity = "1";
-      this.powerFillEl.style.width = `${Math.max(0, Math.min(100, timePct))}%`;
-    } else {
-      this.powerBarEl.style.opacity = "0";
     }
 
     // Sweep indicator
@@ -190,7 +166,10 @@ export class HUD {
           : game.totalScore.yellow > game.totalScore.red
             ? "YELLOW"
             : "TIE";
-      this.messageEl.innerHTML = `Game Over!<br>${winner} wins ${game.totalScore.red}-${game.totalScore.yellow}<br><span style="font-size:14px">Press R to restart</span>`;
+      const restartHint = this.isTouchDevice 
+        ? '<span style="font-size:clamp(11px, 2.5vw, 14px)">Tap RESTART to play again</span>'
+        : '<span style="font-size:clamp(11px, 2.5vw, 14px)">Press R to restart</span>';
+      this.messageEl.innerHTML = `Game Over!<br>${winner} wins ${game.totalScore.red}-${game.totalScore.yellow}<br>${restartHint}`;
       this.messageEl.style.opacity = "1";
     } else {
       this.messageEl.style.opacity = "0";

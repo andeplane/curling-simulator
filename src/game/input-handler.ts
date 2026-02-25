@@ -5,13 +5,13 @@ import type { GameController } from "./game-controller";
 import { HACK_Z, HOG_Z } from "../utils/constants";
 import { createStoneMesh } from "../scene/stones";
 
-const MIN_TIME = 8.0; // seconds hog-to-hog
-const MAX_TIME = 20.0;
+export const MIN_TIME = 8.0; // seconds hog-to-hog
+export const MAX_TIME = 20.0;
 const DEFAULT_TIME = 14.0;
 const TIME_STEP = 0.05; // seconds per frame while held
-const MAX_OMEGA = 2.0;
+export const MAX_OMEGA = 2.0;
 const OMEGA_STEP = 0.016; // 2x faster spin adjustment
-const MAX_AIM_ANGLE = Math.PI / 8;
+export const MAX_AIM_ANGLE = Math.PI / 8;
 const AIM_ANGLE_STEP = 0.003;
 
 const PREVIEW_DT = 1 / 30;
@@ -203,10 +203,10 @@ export class InputHandler {
       this.aimAngle = Math.min(MAX_AIM_ANGLE, this.aimAngle + AIM_ANGLE_STEP);
     }
     if (this.keysDown.has("ArrowUp") || this.keysDown.has("KeyW")) {
-      this.aimTime = Math.min(MAX_TIME, this.aimTime + TIME_STEP);
+      this.aimTime = Math.max(MIN_TIME, this.aimTime - TIME_STEP);
     }
     if (this.keysDown.has("ArrowDown") || this.keysDown.has("KeyS")) {
-      this.aimTime = Math.max(MIN_TIME, this.aimTime - TIME_STEP);
+      this.aimTime = Math.min(MAX_TIME, this.aimTime + TIME_STEP);
     }
     if (this.keysDown.has("KeyQ")) {
       this.aimOmega = Math.max(-MAX_OMEGA, this.aimOmega - OMEGA_STEP);
@@ -347,6 +347,29 @@ export class InputHandler {
       angle: this.aimAngle,
       omega: this.aimOmega,
     };
+  }
+
+  /** Public setters for touch controls to update aim parameters */
+  setAimAngle(value: number): void {
+    this.aimAngle = Math.max(-MAX_AIM_ANGLE, Math.min(MAX_AIM_ANGLE, value));
+    this.needsTrajectoryUpdate = true;
+  }
+
+  setAimTime(value: number): void {
+    this.aimTime = Math.max(MIN_TIME, Math.min(MAX_TIME, value));
+    this.needsTrajectoryUpdate = true;
+  }
+
+  setAimOmega(value: number): void {
+    this.aimOmega = Math.max(-MAX_OMEGA, Math.min(MAX_OMEGA, value));
+    this.needsTrajectoryUpdate = true;
+  }
+
+  /** Throw stone with current aim parameters */
+  throwWithCurrentAim(): void {
+    if (this.game.phase === "AIMING") {
+      this.game.throwStone(this.buildRelease());
+    }
   }
 
   dispose(): void {
