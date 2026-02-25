@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { ShotRelease } from "../physics/types";
+import type { ShotRelease, Team } from "../physics/types";
 import { DEFAULT_ICE_PARAMS, GRAVITY } from "../physics/types";
 import type { GameController } from "./game-controller";
 import { HACK_Z, HOG_Z } from "../utils/constants";
@@ -112,6 +112,16 @@ export class InputHandler {
   private keysDown = new Set<string>();
   private needsTrajectoryUpdate = true;
 
+  // Per-team control storage
+  private teamControls: {
+    red: { aimAngle: number; aimTime: number; aimOmega: number };
+    yellow: { aimAngle: number; aimTime: number; aimOmega: number };
+  } = {
+    red: { aimAngle: 0, aimTime: DEFAULT_TIME, aimOmega: 0 },
+    yellow: { aimAngle: 0, aimTime: DEFAULT_TIME, aimOmega: 0 },
+  };
+  private lastAimingTeam: Team | null = null;
+
   constructor(
     _canvas: HTMLCanvasElement,
     _camera: THREE.PerspectiveCamera,
@@ -192,6 +202,27 @@ export class InputHandler {
       return;
     }
 
+    // Check for team change and restore saved values
+    const currentTeam = this.game.currentTeam;
+    if (this.lastAimingTeam !== currentTeam) {
+      // Reset controls on game reset (first turn of first end)
+      if (this.game.deliveryCount === 0 && this.game.currentEnd === 1) {
+        this.teamControls = {
+          red: { aimAngle: 0, aimTime: DEFAULT_TIME, aimOmega: 0 },
+          yellow: { aimAngle: 0, aimTime: DEFAULT_TIME, aimOmega: 0 },
+        };
+        this.lastAimingTeam = null; // Reset tracking so values are loaded from defaults
+      }
+      
+      // Restore saved values for current team
+      const saved = this.teamControls[currentTeam];
+      this.aimAngle = saved.aimAngle;
+      this.aimTime = saved.aimTime;
+      this.aimOmega = saved.aimOmega;
+      this.lastAimingTeam = currentTeam;
+      this.needsTrajectoryUpdate = true;
+    }
+
     const prevAngle = this.aimAngle;
     const prevTime = this.aimTime;
     const prevOmega = this.aimOmega;
@@ -215,11 +246,17 @@ export class InputHandler {
       this.aimOmega = Math.min(MAX_OMEGA, this.aimOmega + OMEGA_STEP);
     }
 
+    // Save values if they changed
     if (
       this.aimAngle !== prevAngle ||
       this.aimTime !== prevTime ||
       this.aimOmega !== prevOmega
     ) {
+      this.teamControls[currentTeam] = {
+        aimAngle: this.aimAngle,
+        aimTime: this.aimTime,
+        aimOmega: this.aimOmega,
+      };
       this.needsTrajectoryUpdate = true;
     }
 
@@ -352,16 +389,28 @@ export class InputHandler {
   /** Public setters for touch controls to update aim parameters */
   setAimAngle(value: number): void {
     this.aimAngle = Math.max(-MAX_AIM_ANGLE, Math.min(MAX_AIM_ANGLE, value));
+    if (this.game.phase === "AIMING") {
+      const currentTeam = this.game.currentTeam;
+      this.teamControls[currentTeam].aimAngle = this.aimAngle;
+    }
     this.needsTrajectoryUpdate = true;
   }
 
   setAimTime(value: number): void {
     this.aimTime = Math.max(MIN_TIME, Math.min(MAX_TIME, value));
+    if (this.game.phase === "AIMING") {
+      const currentTeam = this.game.currentTeam;
+      this.teamControls[currentTeam].aimTime = this.aimTime;
+    }
     this.needsTrajectoryUpdate = true;
   }
 
   setAimOmega(value: number): void {
     this.aimOmega = Math.max(-MAX_OMEGA, Math.min(MAX_OMEGA, value));
+    if (this.game.phase === "AIMING") {
+      const currentTeam = this.game.currentTeam;
+      this.teamControls[currentTeam].aimOmega = this.aimOmega;
+    }
     this.needsTrajectoryUpdate = true;
   }
 
