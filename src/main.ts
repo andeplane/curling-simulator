@@ -8,7 +8,7 @@ import { GameController } from "./game/game-controller";
 import { InputHandler } from "./game/input-handler";
 import { HUD } from "./game/hud";
 import { TouchControls } from "./game/touch-controls";
-import { HACK_Z, TEE_Z } from "./utils/constants";
+import { HACK_Z, TEE_Z, SHEET_WIDTH, SHEET_LENGTH } from "./utils/constants";
 
 // ── Renderer ────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -39,7 +39,8 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.maxPolarAngle = Math.PI / 2 - 0.05;
 controls.minDistance = 2;
-controls.maxDistance = 80;
+controls.maxDistance = 35;
+controls.enablePan = false; // Prevent arbitrary panning - keep view locked to field
 
 // ── Static scene objects ────────────────────────────────────────────
 scene.add(createIceSheet());
@@ -97,6 +98,14 @@ function updateCamera(): void {
     camera.position.lerp(desiredPos, 0.04);
     controls.target.lerp(desiredTarget, 0.04);
   }
+
+  // Clamp target to field bounds (keeps view centered on sheet)
+  const halfW = SHEET_WIDTH / 2;
+  const halfL = SHEET_LENGTH / 2;
+  controls.target.x = THREE.MathUtils.clamp(controls.target.x, -halfW, halfW);
+  controls.target.z = THREE.MathUtils.clamp(controls.target.z, -halfL, halfL);
+  controls.target.y = 0; // Looking at ice level
+
   controls.update();
 }
 
