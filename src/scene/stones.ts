@@ -138,7 +138,7 @@ export class StoneManager {
       if (s.inPlay) {
         mesh.visible = true;
         mesh.position.set(s.pos.x, 0, s.pos.z);
-        mesh.rotation.y = -s.angle * 3;
+        mesh.rotation.y = -s.angle * 9;
       } else {
         mesh.visible = false;
       }
