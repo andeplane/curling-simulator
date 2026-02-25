@@ -141,7 +141,7 @@ export class HUD {
     const teamName = game.currentTeam.toUpperCase();
 
     const angleDeg = (input.aimAngle * 180 / Math.PI).toFixed(1);
-    const powerPct = Math.round(input.aimPower * 100);
+    const timeVal = input.aimTime.toFixed(1);
     const spinLabel = input.aimOmega > 0.05 ? "CW" : input.aimOmega < -0.05 ? "CCW" : "none";
     const spinVal = Math.abs(input.aimOmega).toFixed(1);
 
@@ -149,7 +149,7 @@ export class HUD {
       this.turnInfoEl.innerHTML = `
         <span style="color:${teamColor}">${teamName}</span> to throw
         &nbsp;|&nbsp; Aim: ${angleDeg}&deg;
-        &nbsp;|&nbsp; Power: ${powerPct}%
+        &nbsp;|&nbsp; Speed: ${timeVal}s
         &nbsp;|&nbsp; Spin: <span style="color:#ffaa00">${spinVal} ${spinLabel}</span>
         &nbsp;|&nbsp; R:${remaining.red} Y:${remaining.yellow}
       `;
@@ -161,10 +161,11 @@ export class HUD {
       this.turnInfoEl.style.opacity = "0.5";
     }
 
-    // Power bar — always visible during aiming
+    // Speed bar — normalized from 8s (0%) to 20s (100%)
     if (game.phase === "AIMING") {
+      const timePct = ((input.aimTime - 8.0) / (20.0 - 8.0)) * 100;
       this.powerBarEl.style.opacity = "1";
-      this.powerFillEl.style.width = `${powerPct}%`;
+      this.powerFillEl.style.width = `${Math.max(0, Math.min(100, timePct))}%`;
     } else {
       this.powerBarEl.style.opacity = "0";
     }

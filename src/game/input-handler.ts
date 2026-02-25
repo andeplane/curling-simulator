@@ -2,25 +2,95 @@ import * as THREE from "three";
 import type { ShotRelease } from "../physics/types";
 import { DEFAULT_ICE_PARAMS, GRAVITY } from "../physics/types";
 import type { GameController } from "./game-controller";
-import { HACK_Z, STONE_RADIUS } from "../utils/constants";
+import { HACK_Z, HOG_Z } from "../utils/constants";
+import { createStoneMesh } from "../scene/stones";
 
-const MIN_SPEED = 1.5;
-const MAX_SPEED = 5.0;
+const MIN_TIME = 8.0; // seconds hog-to-hog
+const MAX_TIME = 20.0;
+const DEFAULT_TIME = 14.0;
+const TIME_STEP = 0.05; // seconds per frame while held
 const MAX_OMEGA = 2.0;
-const OMEGA_STEP = 0.008;
+const OMEGA_STEP = 0.016; // 2x faster spin adjustment
 const MAX_AIM_ANGLE = Math.PI / 8;
 const AIM_ANGLE_STEP = 0.003;
-const POWER_STEP = 0.005;
 
 const PREVIEW_DT = 1 / 30;
-const PREVIEW_MAX_STEPS = 900; // 30 seconds
-const PREVIEW_SAMPLE_EVERY = 3; // plot every 3rd step for smoother line
+const PREVIEW_MAX_STEPS = 900;
+const PREVIEW_SAMPLE_EVERY = 3;
+
+/**
+ * Lookup table: hog-to-hog seconds -> release speed (m/s).
+ * Built once at initialization by simulating stones.
+ */
+let speedLookup: Array<{ time: number; speed: number }> | null = null;
+
+function buildSpeedLookup(): Array<{ time: number; speed: number }> {
+  const ice = DEFAULT_ICE_PARAMS;
+  const dt = 1 / 120;
+  const lookup: Array<{ time: number; speed: number }> = [];
+
+  // Try speeds from 1.0 to 6.0 m/s
+  for (let speed = 1.0; speed <= 6.0; speed += 0.05) {
+    let pz = HACK_Z;
+    let vz = -speed; // moving toward -Z
+    let t = 0;
+    let tNearHog = -1;
+    let tFarHog = -1;
+
+    for (let step = 0; step < 10000; step++) {
+      const spd = Math.abs(vz);
+      if (spd < 0.003) break;
+
+      const mu = Math.min(ice.mu0 * Math.pow(spd, -0.5), ice.muMax);
+      vz += mu * GRAVITY * dt; // friction opposes motion
+      pz += vz * dt;
+      t += dt;
+
+      if (tNearHog < 0 && pz < HOG_Z) tNearHog = t;
+      if (tFarHog < 0 && pz < -HOG_Z) tFarHog = t;
+    }
+
+    if (tNearHog > 0 && tFarHog > 0) {
+      const hogTime = tFarHog - tNearHog;
+      lookup.push({ time: hogTime, speed });
+    }
+  }
+
+  return lookup.sort((a, b) => a.time - b.time);
+}
+
+function timeToSpeed(targetTime: number): number {
+  if (!speedLookup) speedLookup = buildSpeedLookup();
+  if (speedLookup.length === 0) return 2.5; // fallback
+
+  // Clamp to range
+  const clamped = Math.max(MIN_TIME, Math.min(MAX_TIME, targetTime));
+
+  // Binary search for closest match
+  let lo = 0;
+  let hi = speedLookup.length - 1;
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (speedLookup[mid].time < clamped) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  // Linear interpolation
+  const a = speedLookup[lo];
+  const b = speedLookup[hi];
+  if (a.time === b.time) return a.speed;
+  const t = (clamped - a.time) / (b.time - a.time);
+  return a.speed + t * (b.speed - a.speed);
+}
 
 /**
  * Keyboard-driven aiming. Mouse is always free for camera orbit.
  *
  *   A / D  or  Left / Right  — aim direction
- *   W / S  or  Up / Down     — power
+ *   W / S  or  Up / Down     — speed (hog-to-hog seconds)
  *   Q / E                    — spin (Q = CCW, E = CW)
  *   SPACE                    — throw / sweep
  *   R                        — restart
@@ -29,11 +99,12 @@ export class InputHandler {
   private game: GameController;
 
   aimAngle = 0;
-  aimPower = 0.5;
+  aimTime = DEFAULT_TIME; // hog-to-hog seconds
   aimOmega = 0;
 
   aimGroup: THREE.Group;
-  private ghostStone: THREE.Mesh;
+  private ghostStone: THREE.Group;
+  private ghostStoneTeam: "red" | "yellow" | null = null;
   private trajectoryMesh: THREE.Mesh;
   private trajectoryMat: THREE.MeshBasicMaterial;
   private trajectoryHead: THREE.Mesh;
@@ -51,18 +122,17 @@ export class InputHandler {
     this.aimGroup = new THREE.Group();
     this.aimGroup.name = "aimGroup";
 
-    // Ghost stone
-    const ghostMat = new THREE.MeshStandardMaterial({
-      color: 0xffcc00,
-      transparent: true,
-      opacity: 0.45,
-      roughness: 0.5,
+    // Ghost stone — use real stone mesh, semi-transparent
+    this.ghostStone = createStoneMesh("yellow");
+    this.ghostStone.position.y = 0;
+    // Make all materials semi-transparent
+    this.ghostStone.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material instanceof THREE.Material) {
+        const mat = child.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial;
+        mat.transparent = true;
+        mat.opacity = 0.5;
+      }
     });
-    this.ghostStone = new THREE.Mesh(
-      new THREE.CylinderGeometry(STONE_RADIUS, STONE_RADIUS, 0.08, 32),
-      ghostMat
-    );
-    this.ghostStone.position.y = 0.04;
     this.aimGroup.add(this.ghostStone);
 
     // Curved trajectory tube (world-space, thick and visible)
@@ -123,7 +193,7 @@ export class InputHandler {
     }
 
     const prevAngle = this.aimAngle;
-    const prevPower = this.aimPower;
+    const prevTime = this.aimTime;
     const prevOmega = this.aimOmega;
 
     if (this.keysDown.has("ArrowLeft") || this.keysDown.has("KeyA")) {
@@ -133,10 +203,10 @@ export class InputHandler {
       this.aimAngle = Math.min(MAX_AIM_ANGLE, this.aimAngle + AIM_ANGLE_STEP);
     }
     if (this.keysDown.has("ArrowUp") || this.keysDown.has("KeyW")) {
-      this.aimPower = Math.min(1.0, this.aimPower + POWER_STEP);
+      this.aimTime = Math.min(MAX_TIME, this.aimTime + TIME_STEP);
     }
     if (this.keysDown.has("ArrowDown") || this.keysDown.has("KeyS")) {
-      this.aimPower = Math.max(0.0, this.aimPower - POWER_STEP);
+      this.aimTime = Math.max(MIN_TIME, this.aimTime - TIME_STEP);
     }
     if (this.keysDown.has("KeyQ")) {
       this.aimOmega = Math.max(-MAX_OMEGA, this.aimOmega - OMEGA_STEP);
@@ -147,7 +217,7 @@ export class InputHandler {
 
     if (
       this.aimAngle !== prevAngle ||
-      this.aimPower !== prevPower ||
+      this.aimTime !== prevTime ||
       this.aimOmega !== prevOmega
     ) {
       this.needsTrajectoryUpdate = true;
@@ -168,8 +238,23 @@ export class InputHandler {
     this.aimGroup.position.set(0, 0, hackZ);
     this.aimGroup.rotation.y = 0; // no rotation — trajectory is world-space
 
-    const ghostColor = this.game.currentTeam === "red" ? 0xff4455 : 0xffcc00;
-    (this.ghostStone.material as THREE.MeshStandardMaterial).color.setHex(ghostColor);
+    // Update ghost stone color to match current team (only when team changes)
+    const team = this.game.currentTeam;
+    if (this.ghostStoneTeam !== team) {
+      this.aimGroup.remove(this.ghostStone);
+      this.ghostStone = createStoneMesh(team);
+      this.ghostStone.position.y = 0;
+      // Make all materials semi-transparent
+      this.ghostStone.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material instanceof THREE.Material) {
+          const mat = child.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial;
+          mat.transparent = true;
+          mat.opacity = 0.5;
+        }
+      });
+      this.aimGroup.add(this.ghostStone);
+      this.ghostStoneTeam = team;
+    }
 
     if (this.needsTrajectoryUpdate) {
       this.needsTrajectoryUpdate = false;
@@ -184,7 +269,7 @@ export class InputHandler {
   private updateTrajectory(): void {
     const targetEnd = this.game.world.targetEnd;
     const hackZ = targetEnd === -1 ? HACK_Z : -HACK_Z;
-    const speed = MIN_SPEED + this.aimPower * (MAX_SPEED - MIN_SPEED);
+    const speed = timeToSpeed(this.aimTime);
 
     let px = 0;
     let pz = hackZ;
@@ -254,7 +339,7 @@ export class InputHandler {
   }
 
   private buildRelease(): ShotRelease {
-    const speed = MIN_SPEED + this.aimPower * (MAX_SPEED - MIN_SPEED);
+    const speed = timeToSpeed(this.aimTime);
     return {
       x: 0,
       z: 0,

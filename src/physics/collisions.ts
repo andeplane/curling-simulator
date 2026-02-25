@@ -105,16 +105,8 @@ function positionalCorrection(
 }
 
 function resolveWall(s: StoneState, halfWidth: number): void {
-  const wallRestitution = 0.3;
-
-  // Left wall
-  if (s.pos.x - STONE_RADIUS < -halfWidth) {
-    s.pos.x = -halfWidth + STONE_RADIUS;
-    s.vel.x = Math.abs(s.vel.x) * wallRestitution;
-  }
-  // Right wall
-  if (s.pos.x + STONE_RADIUS > halfWidth) {
-    s.pos.x = halfWidth - STONE_RADIUS;
-    s.vel.x = -Math.abs(s.vel.x) * wallRestitution;
+  // Side wall contact = disqualification (stone removed from play)
+  if (s.pos.x - STONE_RADIUS < -halfWidth || s.pos.x + STONE_RADIUS > halfWidth) {
+    s.inPlay = false;
   }
 }

@@ -70,7 +70,7 @@ function createHandle(color: THREE.ColorRepresentation): THREE.Group {
   return group;
 }
 
-function createStoneMesh(team: Team): THREE.Group {
+export function createStoneMesh(team: Team): THREE.Group {
   const group = new THREE.Group();
   const stoneColor = team === "red" ? COLORS.red : COLORS.yellow;
 
@@ -138,7 +138,7 @@ export class StoneManager {
       if (s.inPlay) {
         mesh.visible = true;
         mesh.position.set(s.pos.x, 0, s.pos.z);
-        mesh.rotation.y = -s.angle;
+        mesh.rotation.y = -s.angle * 3;
       } else {
         mesh.visible = false;
       }

@@ -38,10 +38,10 @@ export interface SweepAction {
 }
 
 export const DEFAULT_ICE_PARAMS: IceParams = {
-  mu0: 0.013,
+  mu0: 0.008,
   muMax: 0.06,
   curlCoeff: 0.028,
-  kSpin: 0.0002,
+  kSpin: 0.00008,
   sweepMuFactor: 0.78,
   sweepCurlFactor: 0.45,
 };

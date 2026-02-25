@@ -55,6 +55,10 @@ function drawHouse(ctx: CanvasRenderingContext2D, centreZ: number) {
     ctx.lineWidth = 2;
     ctx.stroke();
   }
+
+  // Cross in the button (middle circle) — horizontal line through center, full lane width
+  const halfW = SHEET_WIDTH / 2;
+  drawLine(ctx, -halfW, centreZ, halfW, centreZ, 2, "#111111");
 }
 
 function drawLine(
@@ -119,9 +123,6 @@ function paintIceTexture(): HTMLCanvasElement {
 
   const halfW = SHEET_WIDTH / 2;
 
-  // Centre line (full length between hacks)
-  drawLine(ctx, 0, -HACK_Z, 0, HACK_Z, 2);
-
   // For each end (positive z and negative z)
   for (const sign of [1, -1]) {
     const tee = sign * TEE_Z;
@@ -132,8 +133,8 @@ function paintIceTexture(): HTMLCanvasElement {
     // Tee line
     drawLine(ctx, -halfW, tee, halfW, tee, 2);
 
-    // Back line
-    drawLine(ctx, -halfW, back, halfW, back, 2);
+    // Back line — touches outer edge of blue ring (12-foot), black for visibility
+    drawLine(ctx, -halfW, back, halfW, back, 3, "#111111");
 
     // Hog line (red, thicker — standard in real curling)
     drawLine(ctx, -halfW, hog, halfW, hog, 6, COLORS.ringRed);
@@ -144,6 +145,10 @@ function paintIceTexture(): HTMLCanvasElement {
     // Hacks
     drawHack(ctx, hack, sign === 1);
   }
+
+  // Centre line (full length of sheet) — drawn AFTER houses so it appears on top
+  const halfL = SHEET_LENGTH / 2;
+  drawLine(ctx, 0, -halfL, 0, halfL, 3, "#111111");
 
   // Courtesy lines (small marks at the hog line, 1 ft outside the 12-ft ring)
   // These are small tick marks to help skips gauge distance
