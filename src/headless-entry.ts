@@ -18,9 +18,8 @@ export type {
   IceParams,
   ShotRelease,
   SweepAction,
+  TargetEnd,
 } from "./physics/types";
-
-export type { TargetEnd } from "./physics/world";
 
 export {
   DEFAULT_ICE_PARAMS,

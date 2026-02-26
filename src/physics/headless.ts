@@ -1,4 +1,4 @@
-import type { Team, ShotRelease } from "./types";
+import type { Team, ShotRelease, StoneState } from "./types";
 import { GameController } from "../game/game-controller";
 import { PhysicsWorld } from "./world";
 
